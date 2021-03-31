@@ -30,11 +30,7 @@ export default (new Namer({
       );
     }
 
-    let mainBundle = nullthrows(
-      bundleGroupBundles.find(b =>
-        b.getEntryAssets().some(a => a.id === bundleGroup.entryAssetId),
-      ),
-    );
+    let mainBundle = bundleGraph.getMainBundle(bundleGroup);
 
     if (
       bundle.id === mainBundle.id &&
