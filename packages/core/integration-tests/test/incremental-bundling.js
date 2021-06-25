@@ -8,7 +8,7 @@ import {CONFIG} from '@parcel/plugin';
 // $FlowFixMe[untyped-import]
 import CustomBundler from './integration/incremental-bundling/node_modules/parcel-bundler-test';
 
-describe.only('incremental bundling', function() {
+describe('incremental bundling', function() {
   // $FlowFixMe[prop-missing]
   let defaultBundlerSpy = sinon.spy(Bundler[CONFIG], 'bundle');
   let customBundlerSpy = sinon.spy(CustomBundler[CONFIG], 'bundle');
