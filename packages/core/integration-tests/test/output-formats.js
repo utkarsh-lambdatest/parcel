@@ -386,22 +386,24 @@ describe('output formats', function() {
             {
               message,
               origin: '@parcel/core',
-              filePath: source,
-              language: 'js',
-              codeFrame: {
-                codeHighlights: [
-                  {
-                    start: {
-                      line: 1,
-                      column: 10,
+              codeFrames: [
+                {
+                  filePath: source,
+                  language: 'js',
+                  codeHighlights: [
+                    {
+                      start: {
+                        line: 1,
+                        column: 10,
+                      },
+                      end: {
+                        line: 1,
+                        column: 15,
+                      },
                     },
-                    end: {
-                      line: 1,
-                      column: 15,
-                    },
-                  },
-                ],
-              },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -737,22 +739,24 @@ describe('output formats', function() {
             {
               message,
               origin: '@parcel/core',
-              filePath: source,
-              language: 'js',
-              codeFrame: {
-                codeHighlights: [
-                  {
-                    start: {
-                      line: 1,
-                      column: 10,
+              codeFrames: [
+                {
+                  filePath: source,
+                  language: 'js',
+                  codeHighlights: [
+                    {
+                      start: {
+                        line: 1,
+                        column: 10,
+                      },
+                      end: {
+                        line: 1,
+                        column: 15,
+                      },
                     },
-                    end: {
-                      line: 1,
-                      column: 15,
-                    },
-                  },
-                ],
-              },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -1049,22 +1053,24 @@ describe('output formats', function() {
           {
             message,
             origin: '@parcel/packager-js',
-            filePath: source,
-            language: 'js',
-            codeFrame: {
-              codeHighlights: [
-                {
-                  start: {
-                    line: 1,
-                    column: 16,
+            codeFrames: [
+              {
+                filePath: source,
+                language: 'js',
+                codeHighlights: [
+                  {
+                    start: {
+                      line: 1,
+                      column: 16,
+                    },
+                    end: {
+                      line: 1,
+                      column: 40,
+                    },
                   },
-                  end: {
-                    line: 1,
-                    column: 40,
-                  },
-                },
-              ],
-            },
+                ],
+              },
+            ],
           },
         ],
       });
@@ -1117,6 +1123,40 @@ describe('output formats', function() {
       let ns = await run(b);
       assert.deepEqual(ns.test, true);
       assert.deepEqual(ns.default, {test: true});
+    });
+
+    it('should support outputting .mjs files', async function() {
+      let b = await bundle(
+        path.join(__dirname, '/integration/formats/esm-mjs/index.js'),
+      );
+
+      let filePath = b.getBundles()[0].filePath;
+      assert(filePath.endsWith('.mjs'));
+      let output = await outputFS.readFile(filePath, 'utf8');
+      assert(output.includes('import '));
+    });
+
+    it('should support outputting ESM in .js files with "type": "module"', async function() {
+      let b = await bundle(
+        path.join(__dirname, '/integration/formats/esm-type-module/index.js'),
+      );
+
+      let filePath = b.getBundles()[0].filePath;
+      assert(filePath.endsWith('.js'));
+      let output = await outputFS.readFile(filePath, 'utf8');
+      assert(output.includes('import '));
+    });
+
+    it('.cjs extension should override "type": "module"', async function() {
+      let b = await bundle(
+        path.join(__dirname, '/integration/formats/cjs-type-module/index.js'),
+      );
+
+      let filePath = b.getBundles()[0].filePath;
+      assert(filePath.endsWith('.cjs'));
+      let output = await outputFS.readFile(filePath, 'utf8');
+      assert(!output.includes('import '));
+      assert(output.includes('require('));
     });
   });
 
@@ -1242,21 +1282,23 @@ describe('output formats', function() {
           {
             message,
             origin: '@parcel/packager-js',
-            filePath: source,
-            codeFrame: {
-              codeHighlights: [
-                {
-                  start: {
-                    line: 1,
-                    column: 21,
+            codeFrames: [
+              {
+                filePath: source,
+                codeHighlights: [
+                  {
+                    start: {
+                      line: 1,
+                      column: 21,
+                    },
+                    end: {
+                      line: 1,
+                      column: 28,
+                    },
                   },
-                  end: {
-                    line: 1,
-                    column: 28,
-                  },
-                },
-              ],
-            },
+                ],
+              },
+            ],
           },
         ],
       });

@@ -113,6 +113,7 @@ export type Dependency = {|
   loc: ?SourceLocation,
   env: Environment,
   meta: Meta,
+  resolverMeta?: ?Meta,
   target: ?Target,
   sourceAssetId: ?string,
   sourcePath: ?string,
@@ -236,6 +237,7 @@ export type ParcelOptions = {|
     +publicUrl: string,
     +distDir?: FilePath,
     +engines?: Engines,
+    +outputFormat?: OutputFormat,
   |},
 |};
 
@@ -255,13 +257,6 @@ export type Edge<TEdgeType: string | null> = {|
   to: NodeId,
   type: TEdgeType,
 |};
-
-export interface Node {
-  id: ContentKey;
-  +type: string;
-  // $FlowFixMe
-  value: any;
-}
 
 export type AssetNode = {|
   id: ContentKey,
