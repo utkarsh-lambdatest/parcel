@@ -1,13 +1,6 @@
 // @flow strict-local
 
-import type {
-  Async,
-  FilePath,
-  DependencySpecifier,
-  Symbol,
-  SourceLocation,
-  Meta,
-} from '@parcel/types';
+import type {Async, Symbol, Meta} from '@parcel/types';
 import type {SharedReference} from '@parcel/workers';
 import type {Diagnostic} from '@parcel/diagnostic';
 import type {
@@ -18,6 +11,7 @@ import type {
   Dependency,
   DependencyNode,
   Entry,
+  InternalSourceLocation,
   NodeId,
   ParcelOptions,
   Target,
@@ -28,7 +22,6 @@ import type {PathRequestInput} from './PathRequest';
 
 import invariant from 'assert';
 import nullthrows from 'nullthrows';
-import path from 'path';
 import {PromiseQueue} from '@parcel/utils';
 import {hashString} from '@parcel/hash';
 import ThrowableDiagnostic, {md} from '@parcel/diagnostic';
@@ -39,11 +32,16 @@ import createEntryRequest from './EntryRequest';
 import createTargetRequest from './TargetRequest';
 import createAssetRequest from './AssetRequest';
 import createPathRequest from './PathRequest';
+import {
+  type ProjectPath,
+  fromProjectPathRelative,
+  fromProjectPath,
+} from '../projectPath';
 
 import dumpToGraphViz from '../dumpGraphToGraphViz';
 
 type AssetGraphRequestInput = {|
-  entries?: Array<string>,
+  entries?: Array<ProjectPath>,
   assetGroups?: Array<AssetGroup>,
   optionsRef: SharedReference,
   name: string,
@@ -284,7 +282,7 @@ export class AssetGraphBuilder {
       // exportSymbol -> identifier
       let assetSymbols: $ReadOnlyMap<
         Symbol,
-        {|local: Symbol, loc: ?SourceLocation, meta?: ?Meta|},
+        {|local: Symbol, loc: ?InternalSourceLocation, meta?: ?Meta|},
       > = assetNode.value.symbols;
       // identifier -> exportSymbol
       let assetSymbolsInverse;
@@ -427,7 +425,7 @@ export class AssetGraphBuilder {
 
       let assetSymbols: ?$ReadOnlyMap<
         Symbol,
-        {|local: Symbol, loc: ?SourceLocation, meta?: ?Meta|},
+        {|local: Symbol, loc: ?InternalSourceLocation, meta?: ?Meta|},
       > = assetNode.value.symbols;
 
       let assetSymbolsInverse = null;
@@ -483,7 +481,7 @@ export class AssetGraphBuilder {
         }
       }
 
-      let errors = [];
+      let errors: Array<Diagnostic> = [];
 
       for (let incomingDep of incomingDeps) {
         let incomingDepUsedSymbolsUpOld = incomingDep.usedSymbolsUp;
@@ -511,15 +509,18 @@ export class AssetGraphBuilder {
             invariant(resolution && resolution.type === 'asset_group');
 
             errors.push({
-              message: md`${path.relative(
-                this.options.projectRoot,
+              message: md`${fromProjectPathRelative(
                 resolution.value.filePath,
               )} does not export '${s}'`,
               origin: '@parcel/core',
               codeFrames: loc
                 ? [
                     {
-                      filePath: loc?.filePath,
+                      filePath:
+                        fromProjectPath(
+                          this.options.projectRoot,
+                          loc?.filePath,
+                        ) ?? undefined,
                       language: assetNode.value.type,
                       codeHighlights: [
                         {
@@ -801,7 +802,7 @@ export class AssetGraphBuilder {
     );
   }
 
-  async runEntryRequest(input: DependencySpecifier) {
+  async runEntryRequest(input: ProjectPath) {
     let prevEntries = !this.assetGraph.unsafeToBundleIncrementally
       ? this.assetGraph
           .getEntryAssets()
@@ -810,7 +811,7 @@ export class AssetGraphBuilder {
       : [];
 
     let request = createEntryRequest(input);
-    let result = await this.api.runRequest<FilePath, EntryResult>(request, {
+    let result = await this.api.runRequest<ProjectPath, EntryResult>(request, {
       force: true,
     });
     this.assetGraph.resolveEntry(request.input, result.entries, request.id);
