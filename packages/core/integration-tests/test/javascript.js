@@ -664,8 +664,7 @@ describe('javascript', function() {
       mainBundle.filePath,
       'utf8',
     );
-    assert(mainBundleContent.includes("require('./async')"));
-    assert(mainBundleContent.includes(`require('./async2')`));
+    assert(!mainBundleContent.includes('foo:'));
   });
 
   it('should split bundles when a dynamic import is used with a node environment', async function() {
@@ -788,6 +787,186 @@ describe('javascript', function() {
         assets: ['worker.js', 'common.js'],
       },
     ]);
+  });
+
+  it('should support bundling workers with dynamic import', async function() {
+    let b = await bundle(
+      path.join(__dirname, '/integration/worker-dynamic/index.js'),
+    );
+
+    assertBundles(b, [
+      {
+        name: 'index.js',
+        assets: ['index.js', 'bundle-url.js', 'get-worker-url.js'],
+      },
+      {
+        assets: [
+          'worker.js',
+          'bundle-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+        ],
+      },
+      {
+        assets: ['async.js', 'esmodule-helpers.js'],
+      },
+    ]);
+
+    let res = await new Promise(resolve => {
+      run(b, {
+        output: resolve,
+      });
+    });
+    assert.deepEqual(res, {default: 42});
+  });
+
+  it('should support bundling workers with dynamic import with legacy browser targets', async function() {
+    let b = await bundle(
+      path.join(__dirname, '/integration/worker-dynamic/index.js'),
+      {
+        defaultTargetOptions: {
+          outputFormat: 'esmodule',
+          shouldScopeHoist: true,
+          engines: {
+            browsers: 'IE 11',
+          },
+        },
+      },
+    );
+
+    assertBundles(b, [
+      {
+        name: 'index.js',
+        assets: ['index.js', 'bundle-url.js', 'get-worker-url.js'],
+      },
+      {
+        assets: [
+          'worker.js',
+          'bundle-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+        ],
+      },
+      {
+        assets: ['async.js'],
+      },
+    ]);
+
+    let res = await new Promise(resolve => {
+      run(b, {
+        output: resolve,
+      });
+    });
+    assert.deepEqual(res, {default: 42});
+  });
+
+  it('should support bundling workers with dynamic import in both page and worker', async function() {
+    let b = await bundle(
+      path.join(__dirname, '/integration/worker-dynamic/index-async.js'),
+    );
+
+    assertBundles(b, [
+      {
+        name: 'index-async.js',
+        assets: [
+          'index-async.js',
+          'bundle-url.js',
+          'get-worker-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+        ],
+      },
+      {
+        assets: [
+          'worker.js',
+          'bundle-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+        ],
+      },
+      {
+        assets: ['async.js', 'esmodule-helpers.js'],
+      },
+      {
+        assets: ['async.js', 'esmodule-helpers.js'],
+      },
+    ]);
+
+    let res = await new Promise(resolve => {
+      run(b, {
+        output: resolve,
+      });
+    });
+    assert.deepEqual(res, {default: 42});
+  });
+
+  it('should support bundling workers with dynamic import in nested worker', async function() {
+    let b = await bundle(
+      path.join(__dirname, '/integration/worker-dynamic/index-nested.js'),
+    );
+
+    assertBundles(b, [
+      {
+        name: 'index-nested.js',
+        assets: ['index-nested.js', 'bundle-url.js', 'get-worker-url.js'],
+      },
+      {
+        assets: [
+          'worker-nested.js',
+          'bundle-url.js',
+          'get-worker-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+        ],
+      },
+      {
+        assets: [
+          'worker.js',
+          'bundle-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+        ],
+      },
+      {
+        assets: ['async.js', 'esmodule-helpers.js'],
+      },
+    ]);
+
+    let res = await new Promise(resolve => {
+      run(b, {
+        output: resolve,
+      });
+    });
+    assert.deepEqual(res, {default: 42});
+  });
+
+  it('should support workers pointing to themselves', async function() {
+    let b = await bundle(
+      path.join(__dirname, '/integration/worker-self/index.js'),
+    );
+
+    assertBundles(b, [
+      {
+        name: 'index.js',
+        assets: [
+          'index.js',
+          'bundle-url.js',
+          'get-worker-url.js',
+          'workerHelpers.js',
+          'esmodule-helpers.js',
+        ],
+      },
+      {
+        assets: [
+          'workerHelpers.js',
+          'bundle-url.js',
+          'get-worker-url.js',
+          'esmodule-helpers.js',
+        ],
+      },
+    ]);
+
+    await run(b);
   });
 
   it('should support bundling workers of type module', async function() {
@@ -1156,6 +1335,48 @@ describe('javascript', function() {
       assert(errored);
     });
   }
+
+  it('should ignore importScripts when not in a worker context', async function() {
+    let b = await bundle(
+      path.join(
+        __dirname,
+        '/integration/worker-import-scripts/importScripts.js',
+      ),
+    );
+
+    assertBundles(b, [
+      {
+        type: 'js',
+        assets: ['importScripts.js'],
+      },
+    ]);
+
+    let res = await outputFS.readFile(b.getBundles()[0].filePath, 'utf8');
+    assert(res.includes("importScripts('imported.js')"));
+  });
+
+  it('should ignore importScripts in script workers when not passed a string literal', async function() {
+    let b = await bundle(
+      path.join(
+        __dirname,
+        '/integration/worker-import-scripts/index-variable.js',
+      ),
+    );
+
+    assertBundles(b, [
+      {
+        type: 'js',
+        assets: ['index-variable.js', 'bundle-url.js', 'get-worker-url.js'],
+      },
+      {
+        type: 'js',
+        assets: ['variable.js'],
+      },
+    ]);
+
+    let res = await outputFS.readFile(b.getBundles()[1].filePath, 'utf8');
+    assert(res.includes('importScripts(url)'));
+  });
 
   it('should support bundling service-workers', async function() {
     let b = await bundle(
@@ -1686,27 +1907,26 @@ describe('javascript', function() {
           'bundle-url.js',
           'get-worker-url.js',
           'bundle-manifest.js',
+          'lodash.js',
+          'esmodule-helpers.js',
         ],
       },
       {
-        assets: ['worker.js'],
-      },
-      {
-        assets: ['lodash.js', 'esmodule-helpers.js'],
+        assets: ['worker.js', 'lodash.js', 'esmodule-helpers.js'],
       },
     ]);
 
-    let sharedBundle = b
-      .getBundles()
-      .sort((a, b) => b.stats.size - a.stats.size)
-      .find(b => b.name !== 'index.js');
+    // let sharedBundle = b
+    //   .getBundles()
+    //   .sort((a, b) => b.stats.size - a.stats.size)
+    //   .find(b => b.name !== 'index.js');
     let workerBundle = b.getBundles().find(b => b.name.startsWith('worker'));
-    let contents = await outputFS.readFile(workerBundle.filePath, 'utf8');
-    assert(
-      contents.includes(
-        `importScripts("./${path.basename(sharedBundle.filePath)}")`,
-      ),
-    );
+    // let contents = await outputFS.readFile(workerBundle.filePath, 'utf8');
+    // assert(
+    //   contents.includes(
+    //     `importScripts("./${path.basename(sharedBundle.filePath)}")`,
+    //   ),
+    // );
 
     let outputArgs = [];
     let workerArgs = [];
@@ -1725,6 +1945,65 @@ describe('javascript', function() {
     assert.deepStrictEqual(workerArgs, [
       `http://localhost/${path.basename(workerBundle.filePath)}`,
     ]);
+  });
+
+  it('should support workers with shared assets between page and worker with async imports', async function() {
+    let b = await bundle(
+      path.join(__dirname, '/integration/worker-shared-page/index.html'),
+      {
+        mode: 'production',
+        defaultTargetOptions: {
+          shouldOptimize: false,
+        },
+      },
+    );
+
+    assertBundles(b, [
+      {
+        name: 'index.html',
+        assets: ['index.html'],
+      },
+      {
+        assets: [
+          'bundle-manifest.js',
+          'bundle-url.js',
+          'cacheLoader.js',
+          'get-worker-url.js',
+          'index.js',
+          'js-loader.js',
+          'large.js',
+        ],
+      },
+      {
+        assets: [
+          'bundle-manifest.js',
+          'bundle-url.js',
+          'cacheLoader.js',
+          'js-loader.js',
+          'large.js',
+          'worker.js',
+        ],
+      },
+      {
+        assets: [
+          'bundle-manifest.js',
+          'get-worker-url.js',
+          'index.js',
+          'large.js',
+        ],
+      },
+      {
+        assets: ['async.js'],
+      },
+      {
+        assets: ['async.js'],
+      },
+      {
+        assets: ['async.js'],
+      },
+    ]);
+
+    await run(b);
   });
 
   it('should dynamic import files which import raw files', async function() {
@@ -3391,6 +3670,18 @@ describe('javascript', function() {
     assert.equal(res.default, '<p>test</p>\n');
   });
 
+  it('should inline an HTML bundle and inline scripts with `bundle-text`', async () => {
+    let b = await bundle(
+      path.join(__dirname, '/integration/bundle-text/inline.js'),
+    );
+
+    let res = await run(b);
+    assert.equal(
+      res.default,
+      "<p>test</p>\n<script>console.log('hi');\n\n</script>\n",
+    );
+  });
+
   it("should inline a JS bundle's compiled text with `bundle-text` and HMR enabled", async () => {
     let b = await bundle(
       path.join(__dirname, '/integration/bundle-text/javascript.js'),
@@ -4475,5 +4766,329 @@ describe('javascript', function() {
         ],
       },
     );
+  });
+
+  describe('multiple import types', function() {
+    it('supports both static and dynamic imports to the same specifier in the same file', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/static-dynamic.js',
+        ),
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['static-dynamic.js', 'other.js', 'esmodule-helpers.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.Foo, 'function');
+      assert.equal(typeof res.LazyFoo, 'object');
+      assert.equal(res.Foo, await res.LazyFoo);
+    });
+
+    it('supports both static and dynamic imports to the same specifier in the same file with scope hoisting', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/static-dynamic.js',
+        ),
+        {
+          defaultTargetOptions: {
+            outputFormat: 'esmodule',
+            isLibrary: true,
+            shouldScopeHoist: true,
+          },
+        },
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['static-dynamic.js', 'other.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.Foo, 'function');
+      assert.equal(typeof res.LazyFoo, 'object');
+      assert.equal(res.Foo, await res.LazyFoo);
+    });
+
+    it('supports static, dynamic, and url to the same specifier in the same file', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/static-dynamic-url.js',
+        ),
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: [
+            'static-dynamic-url.js',
+            'other.js',
+            'esmodule-helpers.js',
+            'bundle-url.js',
+          ],
+        },
+        {
+          type: 'js',
+          assets: ['other.js', 'esmodule-helpers.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.Foo, 'function');
+      assert.equal(typeof res.LazyFoo, 'object');
+      assert.equal(res.Foo, await res.LazyFoo);
+      assert.equal(
+        res.url,
+        'http://localhost/' + path.basename(b.getBundles()[1].filePath),
+      );
+    });
+
+    it('supports static, dynamic, and url to the same specifier in the same file with scope hoisting', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/static-dynamic-url.js',
+        ),
+        {
+          defaultTargetOptions: {
+            outputFormat: 'esmodule',
+            isLibrary: true,
+            shouldScopeHoist: true,
+          },
+        },
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['static-dynamic-url.js', 'other.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.Foo, 'function');
+      assert.equal(typeof res.LazyFoo, 'object');
+      assert.equal(res.Foo, await res.LazyFoo);
+      assert.equal(
+        res.url,
+        'http://localhost/' + path.basename(b.getBundles()[1].filePath),
+      );
+    });
+
+    it('supports dynamic import and url to the same specifier in the same file', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/dynamic-url.js',
+        ),
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: [
+            'dynamic-url.js',
+            'esmodule-helpers.js',
+            'bundle-url.js',
+            'cacheLoader.js',
+            'js-loader.js',
+          ],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js', 'esmodule-helpers.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.lazy, 'object');
+      assert.equal(typeof (await res.lazy), 'function');
+      assert.equal(
+        res.url,
+        'http://localhost/' + path.basename(b.getBundles()[1].filePath),
+      );
+    });
+
+    it('supports dynamic import and url to the same specifier in the same file with scope hoisting', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/dynamic-url.js',
+        ),
+        {
+          defaultTargetOptions: {
+            outputFormat: 'esmodule',
+            isLibrary: true,
+            shouldScopeHoist: true,
+          },
+        },
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['dynamic-url.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.lazy, 'object');
+      assert.equal(typeof (await res.lazy), 'function');
+      assert.equal(
+        res.url,
+        'http://localhost/' + path.basename(b.getBundles()[1].filePath),
+      );
+    });
+
+    it('supports static import and inline bundle for the same asset', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/static-inline.js',
+        ),
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['static-inline.js', 'other.js', 'esmodule-helpers.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js', 'esmodule-helpers.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.Foo, 'function');
+      assert.equal(typeof res.text, 'string');
+    });
+
+    it('supports static import and inline bundle for the same asset with scope hoisting', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/static-inline.js',
+        ),
+        {
+          defaultTargetOptions: {
+            outputFormat: 'esmodule',
+            isLibrary: true,
+            shouldScopeHoist: true,
+          },
+        },
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['static-inline.js', 'other.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.Foo, 'function');
+      assert.equal(typeof res.text, 'string');
+    });
+
+    it('supports dynamic import and inline bundle for the same asset', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/dynamic-inline.js',
+        ),
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: [
+            'dynamic-inline.js',
+            'esmodule-helpers.js',
+            'bundle-url.js',
+            'cacheLoader.js',
+            'js-loader.js',
+          ],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js', 'esmodule-helpers.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.lazy, 'object');
+      assert.equal(typeof (await res.lazy), 'function');
+      assert.equal(typeof res.text, 'string');
+    });
+
+    it('supports dynamic import and inline bundle for the same asset with scope hoisting', async function() {
+      let b = await bundle(
+        path.join(
+          __dirname,
+          'integration/multiple-import-types/dynamic-inline.js',
+        ),
+        {
+          defaultTargetOptions: {
+            outputFormat: 'esmodule',
+            isLibrary: true,
+            shouldScopeHoist: true,
+          },
+        },
+      );
+
+      assertBundles(b, [
+        {
+          type: 'js',
+          assets: ['dynamic-inline.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+        {
+          type: 'js',
+          assets: ['other.js'],
+        },
+      ]);
+
+      let res = await run(b);
+      assert.equal(typeof res.lazy, 'object');
+      assert.equal(typeof (await res.lazy), 'function');
+      assert.equal(typeof res.text, 'string');
+    });
   });
 });

@@ -376,6 +376,7 @@ export default (new Transformer({
       inline_fs: Boolean(config?.inlineFS) && !asset.env.isNode(),
       insert_node_globals: !asset.env.isNode(),
       is_browser: asset.env.isBrowser(),
+      is_worker: asset.env.isWorker(),
       env,
       is_type_script: asset.type === 'ts' || asset.type === 'tsx',
       is_jsx: Boolean(config?.isJSX),
@@ -561,6 +562,10 @@ export default (new Transformer({
           meta.importAttributes = dep.attributes;
         }
 
+        if (dep.placeholder) {
+          meta.placeholder = dep.placeholder;
+        }
+
         let env;
         if (dep.kind === 'DynamicImport') {
           if (asset.env.isWorklet()) {
@@ -650,7 +655,9 @@ export default (new Transformer({
       }
 
       let deps = new Map(
-        asset.getDependencies().map(dep => [dep.specifier, dep]),
+        asset
+          .getDependencies()
+          .map(dep => [dep.meta.placeholder ?? dep.specifier, dep]),
       );
       for (let dep of deps.values()) {
         dep.symbols.ensure();

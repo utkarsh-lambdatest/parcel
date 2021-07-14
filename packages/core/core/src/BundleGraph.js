@@ -799,7 +799,13 @@ export default class BundleGraph {
       // If the asset is in any sibling bundles of the original bundle, it is reachable.
       let bundles = this.getBundlesInBundleGroup(bundleGroup);
       if (
-        bundles.some(b => b.id !== bundle.id && this.bundleHasAsset(b, asset))
+        bundles.some(
+          b =>
+            b.id !== bundle.id &&
+            b.bundleBehavior !== BundleBehavior.isolated &&
+            b.bundleBehavior !== BundleBehavior.inline &&
+            this.bundleHasAsset(b, asset),
+        )
       ) {
         return true;
       }
@@ -815,7 +821,8 @@ export default class BundleGraph {
         let bundleNode = nullthrows(this._graph.getNode(bundleNodeId));
         if (
           bundleNode.type !== 'bundle' ||
-          bundleNode.value.bundleBehavior === BundleBehavior.isolated
+          bundleNode.value.bundleBehavior === BundleBehavior.isolated ||
+          bundleNode.value.bundleBehavior === BundleBehavior.inline
         ) {
           return false;
         }
@@ -830,7 +837,8 @@ export default class BundleGraph {
             if (
               node.type === 'root' ||
               (node.type === 'bundle' &&
-                node.value.env.context !== bundle.env.context)
+                (node.value.id === bundle.id ||
+                  node.value.env.context !== bundle.env.context))
             ) {
               isReachable = false;
               actions.stop();
@@ -844,6 +852,7 @@ export default class BundleGraph {
                   b =>
                     b.id !== bundle.id &&
                     b.bundleBehavior !== BundleBehavior.isolated &&
+                    b.bundleBehavior !== BundleBehavior.inline &&
                     this.bundleHasAsset(b, asset),
                 )
               ) {

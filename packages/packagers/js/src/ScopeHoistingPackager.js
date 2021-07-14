@@ -19,7 +19,7 @@ import {ESMOutputFormat} from './ESMOutputFormat';
 import {CJSOutputFormat} from './CJSOutputFormat';
 import {GlobalOutputFormat} from './GlobalOutputFormat';
 import {prelude, helpers} from './helpers';
-import {replaceScriptDependencies} from './utils';
+import {replaceScriptDependencies, getSpecifier} from './utils';
 
 // https://262.ecma-international.org/6.0/#sec-names-and-keywords
 const IDENTIFIER_RE = /^[$_\p{ID_Start}][$_\u200C\u200D\p{ID_Continue}]*$/u;
@@ -70,7 +70,12 @@ export class ScopeHoistingPackager {
   assetOutputs: Map<string, {|code: string, map: ?Buffer|}>;
   exportedSymbols: Map<
     string,
-    Array<{|exportAs: string, local: string|}>,
+    {|
+      asset: Asset,
+      exportSymbol: string,
+      local: string,
+      exportAs: Array<string>,
+    |},
   > = new Map();
   externals: Map<string, Map<string, string>> = new Map();
   topLevelNames: Map<string, number> = new Map();
@@ -224,43 +229,27 @@ export class ScopeHoistingPackager {
 
   async loadAssets() {
     let queue = new PromiseQueue({maxConcurrent: 32});
-    this.bundle.traverse((node, shouldWrap) => {
-      switch (node.type) {
-        case 'dependency':
-          // Mark assets that should be wrapped, based on metadata in the incoming dependency tree
-          if (node.value.meta.shouldWrap) {
-            let resolved = this.bundleGraph.getDependencyResolution(
-              node.value,
-              this.bundle,
-            );
-            if (resolved && resolved.sideEffects) {
-              this.wrappedAssets.add(resolved.id);
-            }
-            return true;
-          }
-          break;
-        case 'asset':
-          queue.add(async () => {
-            let [code, map] = await Promise.all([
-              node.value.getCode(),
-              this.bundle.env.sourceMap ? node.value.getMapBuffer() : null,
-            ]);
-            return [node.value.id, {code, map}];
-          });
+    this.bundle.traverseAssets((asset, shouldWrap) => {
+      queue.add(async () => {
+        let [code, map] = await Promise.all([
+          asset.getCode(),
+          this.bundle.env.sourceMap ? asset.getMapBuffer() : null,
+        ]);
+        return [asset.id, {code, map}];
+      });
 
-          if (
-            shouldWrap ||
-            node.value.meta.shouldWrap ||
-            this.isAsyncBundle ||
-            this.bundle.env.sourceType === 'script' ||
-            this.bundleGraph.isAssetReferencedByDependant(
-              this.bundle,
-              node.value,
-            )
-          ) {
-            this.wrappedAssets.add(node.value.id);
-            return true;
-          }
+      if (
+        shouldWrap ||
+        asset.meta.shouldWrap ||
+        this.isAsyncBundle ||
+        this.bundle.env.sourceType === 'script' ||
+        this.bundleGraph.isAssetReferencedByDependant(this.bundle, asset) ||
+        this.bundleGraph
+          .getIncomingDependencies(asset)
+          .some(dep => dep.meta.shouldWrap)
+      ) {
+        this.wrappedAssets.add(asset.id);
+        return true;
       }
     });
 
@@ -279,27 +268,32 @@ export class ScopeHoistingPackager {
     // TODO: handle ESM exports of wrapped entry assets...
     let entry = this.bundle.getMainEntry();
     if (entry && !this.wrappedAssets.has(entry.id)) {
-      for (let {exportAs, symbol} of this.bundleGraph.getExportedSymbols(
-        entry,
-      )) {
+      for (let {
+        asset,
+        exportAs,
+        symbol,
+        exportSymbol,
+      } of this.bundleGraph.getExportedSymbols(entry)) {
         if (typeof symbol === 'string') {
           let symbols = this.exportedSymbols.get(
             symbol === '*' ? nullthrows(entry.symbols.get('*')?.local) : symbol,
-          );
+          )?.exportAs;
 
-          let local = symbol;
-          if (symbols) {
-            local = symbols[0].local;
-          } else {
+          if (!symbols) {
             symbols = [];
-            this.exportedSymbols.set(symbol, symbols);
+            this.exportedSymbols.set(symbol, {
+              asset,
+              exportSymbol,
+              local: symbol,
+              exportAs: symbols,
+            });
           }
 
           if (exportAs === '*') {
             exportAs = 'default';
           }
 
-          symbols.push({exportAs, local});
+          symbols.push(exportAs);
         } else if (symbol === null) {
           // TODO `meta.exportsIdentifier[exportSymbol]` should be exported
           // let relativePath = relative(options.projectRoot, asset.filePath);
@@ -551,7 +545,7 @@ ${code}
     let depMap = new Map();
     let replacements = new Map();
     for (let dep of deps) {
-      depMap.set(`${assetId}:${dep.specifier}`, dep);
+      depMap.set(`${assetId}:${getSpecifier(dep)}`, dep);
 
       let asyncResolution = this.bundleGraph.resolveAsyncDependency(
         dep,
