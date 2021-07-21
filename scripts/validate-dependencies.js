@@ -8,7 +8,9 @@ const semver = require('semver');
 const PACKAGE_EXCLUDES = new Set([]);
 
 /** The set of dependencies to ignore when validating. */
-const DEPENDENCY_EXCLUDES = new Set([]);
+const DEPENDENCY_EXCLUDES = new Set([
+  'micromatch', // See https://github.com/parcel-bundler/parcel/pull/5900#discussion_r584800567
+]);
 
 /** A map of package.json fields to descriptors for error formatting. */
 const DEPENDENCY_TYPES = new Map([
