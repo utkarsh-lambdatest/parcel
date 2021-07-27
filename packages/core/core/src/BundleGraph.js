@@ -1608,7 +1608,6 @@ export default class BundleGraph {
       .some(n => n.type === 'root');
   }
 
-
   /**
    * Update the asset in a Bundle Graph and clear the associated Bundle hash.
    */
@@ -1622,6 +1621,7 @@ export default class BundleGraph {
       // the bundle content will change with a modified asset
       this._bundleContentHashes.delete(bundle.id);
     }
+  }
 
   getEntryRoot(projectRoot: FilePath, target: Target): FilePath {
     let cached = this._targetEntryRoots.get(target.distDir);
