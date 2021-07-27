@@ -12,8 +12,16 @@ import {extendDefaultPlugins} from 'svgo';
 export default (new Optimizer({
   async loadConfig({config, options}) {
     let userConfig = await config.getConfigFrom(
-      path.join(options.entryRoot, 'index.html'),
-      ['.htmlnanorc', '.htmlnanorc.js'],
+      path.join(options.projectRoot, 'index.html'),
+      [
+        '.htmlnanorc',
+        '.htmlnanorc.json',
+        '.htmlnanorc.js',
+        'htmlnano.config.js',
+      ],
+      {
+        packageKey: 'htmlnano',
+      },
     );
 
     if (userConfig) {
@@ -35,6 +43,16 @@ export default (new Optimizer({
         'HTMLNanoOptimizer: Only string contents are currently supported',
       );
     }
+
+    const clonedConfig = config || {};
+
+    // $FlowFixMe
+    const presets = htmlnano.presets;
+    const preset =
+      typeof clonedConfig.preset === 'string'
+        ? presets[clonedConfig.preset]
+        : {};
+    delete clonedConfig.preset;
 
     const htmlNanoConfig = {
       minifyJs: false,
@@ -65,15 +83,34 @@ export default (new Optimizer({
               keepRoleAttr: true,
             },
           },
+          // Do not minify ids or remove unreferenced elements in inline SVGs
+          // because they could actually be referenced by a separate inline SVG.
+          {
+            name: 'cleanupIDs',
+            active: false,
+          },
+          // XML namespaces are not required in HTML.
+          {
+            name: 'removeXMLNS',
+            active: true,
+          },
         ]),
       },
-      ...config,
+      ...(preset || {}),
+      ...clonedConfig,
+      // TODO: Uncomment this line once we update htmlnano, new version isn't out yet
+      // skipConfigLoading: true,
     };
 
+    let plugins = [htmlnano(htmlNanoConfig)];
+
+    // $FlowFixMe
+    if (htmlNanoConfig.minifySvg !== false) {
+      plugins.unshift(mapSVG);
+    }
+
     return {
-      contents: (
-        await posthtml([mapSVG, htmlnano(htmlNanoConfig)]).process(contents)
-      ).html,
+      contents: (await posthtml(plugins).process(contents)).html,
     };
   },
 }): Optimizer);
@@ -92,6 +129,23 @@ function mapSVG(
     }
   } else if (node && typeof node === 'object') {
     let {tag, attrs} = node;
+
+    // SVG in HTML does not require xml namespaces to be declared, but standalone SVG files do.
+    // If unset, add them here so that SVGO doesn't have parse errors.
+    if (tag === 'svg') {
+      if (!attrs) {
+        node.attrs = attrs = {};
+      }
+
+      if (!attrs.xmlns) {
+        attrs.xmlns = 'http://www.w3.org/2000/svg';
+      }
+
+      if (!attrs['xmlns:xlink']) {
+        attrs['xmlns:xlink'] = 'http://www.w3.org/1999/xlink';
+      }
+    }
+
     if (inSVG || tag === 'svg') {
       if (SVG_TAG_NAMES[tag]) {
         node.tag = SVG_TAG_NAMES[tag];

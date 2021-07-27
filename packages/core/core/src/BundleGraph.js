@@ -1,8 +1,8 @@
 // @flow strict-local
 
 import type {
-  BundleGroup,
   GraphVisitor,
+  FilePath,
   Symbol,
   TraversalActions,
 } from '@parcel/types';
@@ -13,18 +13,21 @@ import type {
   AssetNode,
   Bundle,
   BundleGraphNode,
+  BundleGroup,
   Dependency,
   DependencyNode,
   NodeId,
   InternalSourceLocation,
+  Target,
 } from './types';
 import type AssetGraph from './AssetGraph';
 import {nodeFromAsset} from './AssetGraph';
+import type {ProjectPath} from './projectPath';
 
 import assert from 'assert';
 import invariant from 'assert';
 import nullthrows from 'nullthrows';
-import {objectSortedEntriesDeep} from '@parcel/utils';
+import {objectSortedEntriesDeep, getRootDir} from '@parcel/utils';
 import {Hash, hashString} from '@parcel/hash';
 import {Priority, BundleBehavior} from './types';
 
@@ -32,6 +35,7 @@ import {getBundleGroupId, getPublicId} from './utils';
 import {ALL_EDGE_TYPES, mapVisitor} from './Graph';
 import ContentGraph, {type SerializedContentGraph} from './ContentGraph';
 import {ISOLATED_ENVS} from './public/Environment';
+import {fromProjectPath} from './projectPath';
 
 type BundleGraphEdgeTypes =
   // A lack of an edge type indicates to follow the edge while traversing
@@ -99,6 +103,7 @@ export default class BundleGraph {
   // It needs to be exposed in BundlerRunner for now based on how applying runtimes works and the
   // BundlerRunner takes care of invalidating hashes when runtimes are applied, but this is not ideal.
   _bundleContentHashes: Map<string, string>;
+  _targetEntryRoots: Map<ProjectPath, FilePath> = new Map();
   _graph: ContentGraph<BundleGraphNode, BundleGraphEdgeTypes>;
 
   constructor({
@@ -450,6 +455,9 @@ export default class BundleGraph {
         this.removeExternalDependency(bundle, node.value);
         if (this._graph.hasEdge(bundleNodeId, nodeId, 'references')) {
           this._graph.addEdge(bundleNodeId, nodeId, 'references');
+        }
+        if (this._graph.hasEdge(bundleNodeId, nodeId, 'internal_async')) {
+          this._graph.removeEdge(bundleNodeId, nodeId, 'internal_async');
         }
       }
     }, assetNodeId);
@@ -1600,6 +1608,7 @@ export default class BundleGraph {
       .some(n => n.type === 'root');
   }
 
+
   /**
    * Update the asset in a Bundle Graph and clear the associated Bundle hash.
    */
@@ -1613,5 +1622,36 @@ export default class BundleGraph {
       // the bundle content will change with a modified asset
       this._bundleContentHashes.delete(bundle.id);
     }
+
+  getEntryRoot(projectRoot: FilePath, target: Target): FilePath {
+    let cached = this._targetEntryRoots.get(target.distDir);
+    if (cached != null) {
+      return cached;
+    }
+
+    let entryBundleGroupIds = this._graph.getNodeIdsConnectedFrom(
+      nullthrows(this._graph.rootNodeId),
+      'bundle',
+    );
+
+    let entries = [];
+    for (let bundleGroupId of entryBundleGroupIds) {
+      let bundleGroupNode = this._graph.getNode(bundleGroupId);
+      invariant(bundleGroupNode?.type === 'bundle_group');
+
+      if (bundleGroupNode.value.target.distDir === target.distDir) {
+        let entryAssetNode = this._graph.getNodeByContentKey(
+          bundleGroupNode.value.entryAssetId,
+        );
+        invariant(entryAssetNode?.type === 'asset');
+        entries.push(
+          fromProjectPath(projectRoot, entryAssetNode.value.filePath),
+        );
+      }
+    }
+
+    let root = getRootDir(entries);
+    this._targetEntryRoots.set(target.distDir, root);
+    return root;
   }
 }
