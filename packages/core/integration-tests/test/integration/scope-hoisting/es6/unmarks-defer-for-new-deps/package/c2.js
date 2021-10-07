@@ -1,5 +1,5 @@
 // hirestimestamp
-
+import { d1 } from "./b";
 export default function c() {
-  return "c";
+  return d1;
 }

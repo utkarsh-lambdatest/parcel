@@ -5915,5 +5915,16 @@ describe('scope hoisting', function() {
       outputFS: overlayFS,
       shouldDisableCache: false,
     });
+
+    await overlayFS.copyFile(
+      path.join(packageDir, 'c2.js'),
+      path.join(packageDir, 'c.js'),
+    );
+
+    await bundle(path.join(testDir, 'index.js'), {
+      inputFS: overlayFS,
+      outputFS: overlayFS,
+      shouldDisableCache: false,
+    });
   });
 });
