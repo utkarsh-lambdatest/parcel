@@ -66,5 +66,11 @@
   "collective": {
     "type": "opencollective",
     "url": "https://opencollective.com/parcel"
+  },
+  "browser": {
+    "emphasize": false,
+    "react-dom": "preact/compat",
+    "react": "preact/compat",
+    "scheduler": false
   }
 }
