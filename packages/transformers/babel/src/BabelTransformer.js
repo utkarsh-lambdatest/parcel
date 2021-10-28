@@ -31,6 +31,7 @@ export default (new Transformer({
             babelOptions: config,
             additionalPlugins: asset.meta.babelPlugins,
           });
+          asset.meta.babelPlugins = null;
         } else {
           await babel7({asset, options, babelOptions: config});
         }
