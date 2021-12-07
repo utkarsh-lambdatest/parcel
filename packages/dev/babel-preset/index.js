@@ -4,12 +4,9 @@ module.exports = () => ({
       require('@babel/preset-env'),
       {
         modules: false,
-        targets: {
-          node: 12,
-        },
+        targets: 'Chrome 75',
       },
     ],
-    require('@babel/preset-react'),
     require('@babel/preset-flow'),
   ],
   plugins: [
@@ -17,6 +14,13 @@ module.exports = () => ({
       require('@babel/plugin-transform-modules-commonjs'),
       {
         lazy: true,
+      },
+    ],
+    [
+      require('@babel/plugin-transform-react-jsx'),
+      {
+        pragma: 'h',
+        pragmaFrag: 'Fragment',
       },
     ],
   ],
