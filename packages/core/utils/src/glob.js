@@ -16,6 +16,7 @@ export function isGlobMatch(filePath: FilePath, glob: Glob): any {
   return isMatch(filePath, normalizeSeparators(glob));
 }
 
+/*
 export function globSync(
   p: FilePath,
   fs: FileSystem,
@@ -42,7 +43,7 @@ export function globSync(
   // $FlowFixMe
   return fastGlob.sync(normalizeSeparators(p), options);
 }
-
+*/
 export function glob(
   p: FilePath,
   fs: FileSystem,
