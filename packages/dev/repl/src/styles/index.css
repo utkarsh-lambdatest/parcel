@@ -35,28 +35,6 @@ main {
   margin: 0;
 }
 
-code,
-pre,
-.cm-wrap .cm-scroller {
-  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
-  font-size: 14px;
-}
-.cm-wrap {
-  font-size: 14px;
-}
-.cm-focused {
-  outline: none !important;
-}
-/* .cm-wrap.cm-dark,
-.cm-wrap.cm-dark .cm-gutters {
-  background-color: var(--background-editor);
-}
-.cm-wrap.cm-dark .cm-activeLine,
-.cm-wrap.cm-dark .cm-selectionBackground,
-.cm-focused.cm-wrap.cm-dark .cm-selectionBackground {
-  background-color: var(--background-editor-active);
-} */
-
 html {
   box-sizing: border-box;
 }

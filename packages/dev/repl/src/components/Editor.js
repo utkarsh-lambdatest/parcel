@@ -9,6 +9,7 @@ import path from 'path';
 import {CodemirrorEditor} from '@mischnic/codemirror-preact';
 
 import {
+  EditorView,
   keymap,
   highlightSpecialChars,
   drawSelection,
@@ -34,6 +35,17 @@ import {html} from '@codemirror/lang-html';
 import {javascript} from '@codemirror/lang-javascript';
 import {css} from '@codemirror/lang-css';
 import {json} from '@codemirror/lang-json';
+
+const theme = EditorView.theme({
+  '.cm-content': {
+    fontFamily: 'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+    fontSize: '14px',
+  },
+  '.cm-gutters': {
+    fontFamily: 'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
+    fontSize: '14px',
+  },
+});
 
 const CONFIG_FILE = /^\.\w*rc$/;
 const Editor: any = memo(function Editor({
@@ -62,6 +74,7 @@ const Editor: any = memo(function Editor({
         rectangularSelection(),
         highlightActiveLine(),
         highlightSelectionMatches(),
+        theme,
         // oneDark,
         keymap.of([
           ...closeBracketsKeymap,
