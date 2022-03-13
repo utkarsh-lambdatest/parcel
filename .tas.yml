@@ -1,0 +1,21 @@
+---
+framework: mocha
+
+preRun:
+     command:
+        - yarn
+        - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh 
+        - source $HOME/.cargo/env
+        - yarn build-native
+
+preMerge:
+  pattern:
+    - "packages/*/!(integration-tests|fs-write-stream-atomic)/test/*.js"
+
+postMerge:
+  pattern: 
+    - "packages/*/!(integration-tests|fs-write-stream-atomic)/test/*.js"
+
+configFile: ".mocharc.json"
+
+version: 1.0
